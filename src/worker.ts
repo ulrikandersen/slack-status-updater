@@ -71,11 +71,11 @@ export default {
       // Get Google Calendar events for today
       const calendar = await getGoogleCalendarWorkLocation(env);
       
-      if (calendar.hasEvents && calendar.workLocation === 'Home') {
+      if (calendar.workLocation === 'Home') {
         // Update Slack status to "Working remotely"
         await updateSlackStatus(env, 'Working remotely', ':house:');
-      } else if (calendar.hasEvents && !calendar.workLocation) {
-        // Notify user to set work location only if there are events but no location
+      } else if (!calendar.workLocation) {
+        // Notify user to set work location
         await sendSlackMessage(env);
       }
     } catch (error) {
@@ -101,11 +101,11 @@ export default {
       // Get Google Calendar events for today
       const calendar = await getGoogleCalendarWorkLocation(env);
       
-      if (calendar.hasEvents && calendar.workLocation === 'Home') {
+      if (calendar.workLocation === 'Home') {
         // Update Slack status to "Working remotely"
         await updateSlackStatus(env, 'Working remotely', ':house:');
-      } else if (calendar.hasEvents && !calendar.workLocation) {
-        // Notify user to set work location only if there are events but no location
+      } else if (!calendar.workLocation) {
+        // Notify user to set work location
         await sendSlackMessage(env);
       }
 
@@ -140,7 +140,7 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
   return data.access_token;
 }
 
-async function getGoogleCalendarWorkLocation(env: Env): Promise<{ workLocation: string | null; hasEvents: boolean }> {
+async function getGoogleCalendarWorkLocation(env: Env): Promise<{ workLocation: string | null }> {
   const access_token = await getGoogleAccessToken(env);
 
   // Get today's calendar events
@@ -170,50 +170,29 @@ async function getGoogleCalendarWorkLocation(env: Env): Promise<{ workLocation: 
     throw new Error(`Calendar API error: ${calendarData.error.message}`);
   }
 
-  const hasEvents = (calendarData.items?.length || 0) > 0;
-  console.log('Found', calendarData.items?.length || 0, 'events for today');
-  
-  if (!hasEvents) {
-    console.log('No events found for today');
-    return { workLocation: null, hasEvents: false };
-  }
-
   // Look for working location in events
   for (const event of calendarData.items || []) {
     console.log('\nChecking event:', {
       summary: event.summary,
-      location: event.location,
-      start: event.start,
       workingLocationProperties: event.workingLocationProperties
     });
 
-    // Check for working location properties first
+    // Only check the dedicated working location field
     if (event.workingLocationProperties) {
       console.log('Found working location properties:', event.workingLocationProperties);
       if (event.workingLocationProperties.type === 'officeLocation') {
         console.log('Found office location. Not setting status.');
-        return { workLocation: 'Office', hasEvents: true };
+        return { workLocation: 'Office' };
       } else if (event.workingLocationProperties.type === 'customLocation' && 
                 event.workingLocationProperties.customLocation?.label?.toLowerCase().includes('home')) {
         console.log('Found home location in custom location. Setting status to Working Remotely.');
-        return { workLocation: 'Home', hasEvents: true };
+        return { workLocation: 'Home' };
       }
-    }
-    
-    // Then check traditional location field and summary
-    if (event.location?.toLowerCase().includes('home') || 
-        event.summary?.toLowerCase().includes('home')) {
-      console.log('Found home in location or summary');
-      return { workLocation: 'Home', hasEvents: true };
-    } else if (event.location?.toLowerCase().includes('office') || 
-               event.summary?.toLowerCase().includes('office')) {
-      console.log('Found office in location or summary');
-      return { workLocation: 'Office', hasEvents: true };
     }
   }
 
   console.log('No working location found in any events');
-  return { workLocation: null, hasEvents: true };
+  return { workLocation: null };
 }
 
 async function getCurrentSlackStatus(env: Env): Promise<SlackProfile | null> {
