@@ -83,15 +83,21 @@ export default {
     }
   },
 
-  // Add fetch handler for local development
+  // Add fetch handler for local development only
   fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
-    try {
-      // Only handle requests to /status
-      const url = new URL(request.url);
-      if (url.pathname !== '/status') {
-        return new Response('Not found', { status: 404 });
-      }
+    // Only allow the status endpoint in development mode
+    const url = new URL(request.url);
+    if (url.pathname !== '/') {
+      return new Response('Not found', { status: 404 });
+    }
 
+    // Check if we're running locally by checking the hostname
+    const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    if (!isLocalhost) {
+      return new Response('Status endpoint is only available in development mode', { status: 403 });
+    }
+
+    try {
       // Get Google Calendar events for today
       const calendar = await getGoogleCalendarWorkLocation(env);
       
@@ -189,7 +195,7 @@ async function getGoogleCalendarWorkLocation(env: Env): Promise<{ workLocation: 
         return { workLocation: 'Office', hasEvents: true };
       } else if (event.workingLocationProperties.type === 'customLocation' && 
                 event.workingLocationProperties.customLocation?.label?.toLowerCase().includes('home')) {
-        console.log('Found home location in custom location');
+        console.log('Found home location in custom location. Setting status to Working Remotely.');
         return { workLocation: 'Home', hasEvents: true };
       }
     }
