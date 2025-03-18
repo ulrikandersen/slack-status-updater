@@ -25,6 +25,11 @@ interface CalendarEvent {
     timeZone: string;
     date?: string;
   };
+  end?: {
+    dateTime: string;
+    timeZone: string;
+    date?: string;
+  }
   workingLocationProperties?: {
     type: string;
     officeLocation?: {
@@ -143,19 +148,18 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
 async function getGoogleCalendarWorkLocation(env: Env): Promise<{ workLocation: string | null }> {
   const access_token = await getGoogleAccessToken(env);
 
-  // Get today's calendar events
+  // Get today's calendar events in UTC
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // Set to start of day (00:00:00)
+  today.setUTCHours(0, 0, 0, 0); // Set to start of day UTC (00:00:00)
   
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0); // Set to start of next day (00:00:00)
+  const endOfDay = new Date(today);
+  endOfDay.setUTCHours(23, 59, 59, 999); // Set to end of day UTC (23:59:59)
 
-  console.log('Fetching calendar events from', today.toISOString(), 'to', tomorrow.toISOString());
+  console.log('Fetching calendar events from', today.toISOString(), 'to', endOfDay.toISOString());
 
   const calendarResponse = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-    `timeMin=${today.toISOString()}&timeMax=${tomorrow.toISOString()}&orderBy=startTime&singleEvents=true`,
+    `timeMin=${today.toISOString()}&timeMax=${endOfDay.toISOString()}&orderBy=startTime&singleEvents=true&timeZone=UTC`,
     {
       headers: {
         Authorization: `Bearer ${access_token}`,
@@ -173,6 +177,8 @@ async function getGoogleCalendarWorkLocation(env: Env): Promise<{ workLocation: 
   // Look for working location in events
   for (const event of calendarData.items || []) {
     console.log('\nChecking event:', {
+      start: event.start,
+      end: event.end,
       summary: event.summary,
       workingLocationProperties: event.workingLocationProperties
     });
@@ -183,9 +189,8 @@ async function getGoogleCalendarWorkLocation(env: Env): Promise<{ workLocation: 
       if (event.workingLocationProperties.type === 'officeLocation') {
         console.log('Found office location. Not setting status.');
         return { workLocation: 'Office' };
-      } else if (event.workingLocationProperties.type === 'customLocation' && 
-                event.workingLocationProperties.customLocation?.label?.toLowerCase().includes('home')) {
-        console.log('Found home location in custom location. Setting status to Working Remotely.');
+      } else if (event.workingLocationProperties.type.toLowerCase().includes('home')) {
+        console.log('Found home location. Setting status to Working Remotely.');
         return { workLocation: 'Home' };
       }
     }
