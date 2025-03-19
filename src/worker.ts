@@ -73,16 +73,7 @@ export default {
   // Run every day at 8:00 AM
   scheduled: async (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
     try {
-      // Get Google Calendar events for today
-      const calendar = await getGoogleCalendarWorkLocation(env);
-      
-      if (calendar.workLocation === 'Home') {
-        // Update Slack status to "Working remotely"
-        await updateSlackStatus(env, 'Working remotely', ':house:');
-      } else if (!calendar.workLocation) {
-        // Notify user to set work location
-        await sendSlackMessage(env);
-      }
+      await handleStatusUpdate(env);
     } catch (error) {
       console.error('Error in worker:', error);
     }
@@ -103,17 +94,7 @@ export default {
     }
 
     try {
-      // Get Google Calendar events for today
-      const calendar = await getGoogleCalendarWorkLocation(env);
-      
-      if (calendar.workLocation === 'Home') {
-        // Update Slack status to "Working remotely"
-        await updateSlackStatus(env, 'Working remotely', ':house:');
-      } else if (!calendar.workLocation) {
-        // Notify user to set work location
-        await sendSlackMessage(env);
-      }
-
+      await handleStatusUpdate(env);
       return new Response('Status check completed', { status: 200 });
     } catch (error) {
       console.error('Error in worker:', error);
@@ -121,6 +102,19 @@ export default {
     }
   }
 };
+
+async function handleStatusUpdate(env: Env): Promise<void> {
+  // Get Google Calendar events for today
+  const calendar = await getGoogleCalendarWorkLocation(env);
+  
+  if (calendar.workLocation === 'Home') {
+    // Update Slack status to "Working remotely"
+    await updateSlackStatus(env, 'Working remotely', ':house_with_garden:');
+  } else if (!calendar.workLocation) {
+    // Notify user to set work location
+    await sendSlackMessage(env);
+  }
+}
 
 async function getGoogleAccessToken(env: Env): Promise<string> {
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
