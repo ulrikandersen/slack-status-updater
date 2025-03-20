@@ -223,10 +223,13 @@ async function updateSlackStatus(env: Env, status_text: string, status_emoji: st
   
   // Only update if there's no existing status
   if (!currentStatus) {
-    // Calculate next day's midnight in local time (00:00)
-    const now = new Date();
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const status_expiration = Math.floor(midnight.getTime() / 1000);
+    // Calculate end of current day in UTC (23:59:59)
+    const today = new Date();
+    today.setHours(23);
+    today.setMinutes(59);
+    today.setSeconds(59);
+    today.setMilliseconds(999);
+    const status_expiration = (today.getTime() / 1000);
 
     const response = await fetch('https://slack.com/api/users.profile.set', {
       method: 'POST',
