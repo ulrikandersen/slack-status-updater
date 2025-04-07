@@ -133,10 +133,38 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
   const data = await tokenResponse.json() as TokenResponse;
   if (!data.access_token) {
     console.error('Failed to get access token:', data);
-    throw new Error('Failed to get access token');
+    // Send a notification to Slack about the auth failure
+    await sendAuthFailureNotification(env);
+    throw new Error('Failed to get access token - refresh token may need updating');
   }
 
   return data.access_token;
+}
+
+// New function to send auth failure notifications
+async function sendAuthFailureNotification(env: Env): Promise<void> {
+  try {
+    const response = await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: env.SLACK_USER_ID,
+        text: '🚨 *Google Authentication Failed* 🚨\nThe Google refresh token appears to have expired. Please generate a new refresh token by running `npx ts-node get_token.ts` and update your environment variables.',
+      }),
+    });
+
+    const data = await response.json() as SlackResponse;
+    if (!data.ok) {
+      console.error('Failed to send auth failure notification:', data.error);
+    } else {
+      console.log('Auth failure notification sent successfully');
+    }
+  } catch (error) {
+    console.error('Error sending auth failure notification:', error);
+  }
 }
 
 async function getGoogleCalendarWorkLocation(env: Env): Promise<{ workLocation: string | null }> {
@@ -274,4 +302,4 @@ async function sendSlackMessage(env: Env): Promise<void> {
     console.error('Failed to send Slack message:', data.error);
     throw new Error(`Slack API error: ${data.error}`);
   }
-} 
+}
